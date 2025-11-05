@@ -1,59 +1,95 @@
-"use client";
+'use client'
 
-import { Card } from "@/components/ui/card";
-import { AnimatedNumber } from "@/components/animated-number";
-import { SiBitcoin, SiEthereum, SiBinance, SiDogecoin } from "react-icons/si";
-import { TbCurrencySolana } from "react-icons/tb";
+import { useEffect, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-interface CryptoCardProps {
-  symbol: string;
-  name: string;
-  price: string;
-  change?: string;
+interface PricingData {
+  success: boolean
+  data: {
+    [key: string]: {
+      price: number
+      change24h: number
+      volume24h: number
+      high24h: number
+      low24h: number
+    }
+  }
 }
 
-const iconMap = {
-  BTC: SiBitcoin,
-  ETH: SiEthereum,
-  SOL: TbCurrencySolana,
-  BNB: SiBinance,
-  DOGE: SiDogecoin,
-};
+export function CryptoCard() {
+  const [pricing, setPricing] = useState<PricingData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-const colorMap = {
-  BTC: "text-orange-500",
-  ETH: "text-blue-500",
-  SOL: "text-purple-500",
-  BNB: "text-yellow-500",
-  DOGE: "text-amber-500",
-};
+  useEffect(() => {
+    const fetchPricing = async () => {
+      try {
+        const response = await fetch('/api/pricing')
+        const data = await response.json()
+        setPricing(data)
+      } catch (error) {
+        console.error('Error fetching pricing:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-export function CryptoCard({ symbol, name, price, change }: CryptoCardProps) {
-  const Icon = iconMap[symbol as keyof typeof iconMap];
-  const iconColor = colorMap[symbol as keyof typeof colorMap];
+    fetchPricing()
+    const interval = setInterval(fetchPricing, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Crypto Prices</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">Loading prices...</div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!pricing || !pricing.success) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Crypto Prices</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4 text-red-500">Failed to load pricing data</div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <Card className="p-4 hover:shadow-lg transition-shadow">
-      <div className="flex items-center gap-2 mb-2">
-        {Icon && <Icon className={`text-2xl ${iconColor}`} />}
-        <div>
-          <div className="font-bold">{symbol}</div>
-          <div className="text-xs text-muted-foreground">{name}</div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Crypto Prices</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {Object.entries(pricing.data).map(([symbol, data]) => (
+            <div key={symbol} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              <div>
+                <div className="font-semibold">{symbol}</div>
+                <div className="text-sm text-gray-500">Vol: ${data.volume24h.toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-lg">${data.price.toLocaleString()}</div>
+                <div className={`text-sm ${data.change24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {data.change24h >= 0 ? '+' : ''}{data.change24h.toFixed(2)}%
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
-      <AnimatedNumber
-        value={price}
-        className="font-mono text-lg font-semibold"
-      />
-      {change && (
-        <div
-          className={`text-sm mt-1 ${
-            change.startsWith("+") ? "text-green-500" : "text-red-500"
-          }`}
-        >
-          {change}
-        </div>
-      )}
+      </CardContent>
     </Card>
-  );
+  )
 }
+
+export default CryptoCard

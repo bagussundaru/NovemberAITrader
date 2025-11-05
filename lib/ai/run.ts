@@ -1,140 +1,124 @@
-import { generateObject } from "ai";
-import { generateUserPrompt, tradingPrompt } from "./prompt";
-import { getCurrentMarketState } from "../trading/current-market-state";
-import { z } from "zod";
-import { deepseekR1 } from "./model";
-import { getAccountInformationAndPerformance } from "../trading/account-information-and-performance";
-import { prisma } from "../prisma";
-import { Opeartion, Symbol } from "@prisma/client";
+import { getMarketAnalyzer } from './market-analyzer';
+import { getNebiusAIService } from './nebius-ai-service';
+import { DatabaseService } from '@/lib/trading-bot/database/database-service';
 
-/**
- * you can interval trading using cron job
- */
-export async function run(initialCapital: number) {
-  const currentMarketState = await getCurrentMarketState("BTC/USDT");
-  const accountInformationAndPerformance =
-    await getAccountInformationAndPerformance(initialCapital);
-  // Count previous Chat entries to provide an invocation counter in the prompt
-  const invocationCount = await prisma.chat.count();
+// Trading symbols to analyze
+const TRADING_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOGEUSDT'];
 
-  const userPrompt = generateUserPrompt({
-    currentMarketState,
-    accountInformationAndPerformance,
-    startTime: new Date(),
-    invocationCount,
-  });
+export async function runAIAnalysis() {
+  try {
+    console.log('🚀 Starting Nebius AI Trading Analysis...');
+    
+    const marketAnalyzer = getMarketAnalyzer();
+    const nebiusAI = getNebiusAIService();
+    
+    // Test Nebius AI connection first
+    const isNebiusConnected = await nebiusAI.testConnection();
+    console.log(`🔗 Nebius AI connection: ${isNebiusConnected ? 'Connected' : 'Failed'}`);
+    
+    // Analyze multiple symbols using Nebius AI
+    const analyses = await marketAnalyzer.analyzeMultipleSymbols(TRADING_SYMBOLS);
+    
+    // Store analyses in database
+    const storedAnalyses = [];
+    
+    const db = DatabaseService.getInstance();
+    const prisma = db.getPrismaClient();
+    
+    for (const analysis of analyses) {
+      try {
+        // Store in database
+        const stored = await prisma.aIAnalysis.create({
+          data: {
+            symbol: analysis.symbol,
+            action: analysis.action,
+            confidence: analysis.confidence,
+            reasoning: analysis.reasoning,
+            technicalData: JSON.stringify(analysis.technicalIndicators),
+            riskData: JSON.stringify(analysis.riskAssessment),
+            modelUsed: analysis.modelUsed,
+            timestamp: new Date(analysis.timestamp)
+          }
+        });
+        
+        storedAnalyses.push({
+          id: stored.id,
+          ...analysis
+        });
+        
+        console.log(`✅ Analysis stored for ${analysis.symbol}: ${analysis.action} (${(analysis.confidence * 100).toFixed(1)}%)`);
+        
+      } catch (dbError) {
+        console.error(`❌ Failed to store analysis for ${analysis.symbol}:`, dbError);
+        // Continue with other analyses even if one fails to store
+        storedAnalyses.push(analysis);
+      }
+    }
+    
+    // Get quick market sentiment from Nebius AI
+    let marketSentiment = 'NEUTRAL 50% - Sentiment analysis unavailable';
+    try {
+      if (isNebiusConnected && analyses.length > 0) {
+        const marketData = analyses.map(a => ({
+          price: 0, // Will be filled by sentiment analysis
+          change24h: 0 // Will be extracted from reasoning
+        }));
+        marketSentiment = await nebiusAI.getQuickSentiment(TRADING_SYMBOLS, marketData);
+      }
+    } catch (sentimentError) {
+      console.log('Market sentiment analysis failed:', sentimentError);
+    }
 
-  const { object, reasoning } = await generateObject({
-    model: deepseekR1,
-    system: tradingPrompt,
-    prompt: userPrompt,
-    output: "object",
-    mode: "json",
-    schema: z.object({
-      opeartion: z.nativeEnum(Opeartion),
-      buy: z
-        .object({
-          pricing: z.number().describe("The pricing of you want to buy in."),
-          amount: z.number(),
-          leverage: z.number().min(1).max(20),
-        })
-        .optional()
-        .describe("If opeartion is buy, generate object"),
-      sell: z
-        .object({
-          percentage: z
-            .number()
-            .min(0)
-            .max(100)
-            .describe("Percentage of position to sell"),
-        })
-        .optional()
-        .describe("If opeartion is sell, generate object"),
-      adjustProfit: z
-        .object({
-          stopLoss: z
-            .number()
-            .optional()
-            .describe("The stop loss of you want to set."),
-          takeProfit: z
-            .number()
-            .optional()
-            .describe("The take profit of you want to set."),
-        })
-        .optional()
-        .describe(
-          "If opeartion is hold and you want to adjust the profit, generate object"
-        ),
-      chat: z
-        .string()
-        .describe(
-          "The reason why you do this opeartion, and tell me your anlyaise, for example: Currently holding all my positions in ETH, SOL, XRP, BTC, DOGE, and BNB as none of my invalidation conditions have been triggered, though XRP and BNB are showing slight unrealized losses. My overall account is up 10.51% with $4927.64 in cash, so I'll continue to monitor my existing trades."
-        ),
-    }),
-  });
-
-  if (object.opeartion === Opeartion.Buy) {
-    await prisma.chat.create({
-      data: {
-        reasoning: reasoning || "<no reasoning>",
-        chat: object.chat || "<no chat>",
-        userPrompt,
-        tradings: {
-          createMany: {
-            data: {
-              symbol: Symbol.BTC,
-              opeartion: object.opeartion,
-              pricing: object.buy?.pricing,
-              amount: object.buy?.amount,
-              leverage: object.buy?.leverage,
-            },
-          },
-        },
-      },
+    // Find the best trading opportunity
+    const bestOpportunity = analyses
+      .filter(a => a.action !== 'HOLD')
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    
+    const summary = {
+      timestamp: new Date().toISOString(),
+      totalAnalyzed: analyses.length,
+      buySignals: analyses.filter(a => a.action === 'BUY').length,
+      sellSignals: analyses.filter(a => a.action === 'SELL').length,
+      holdSignals: analyses.filter(a => a.action === 'HOLD').length,
+      marketSentiment: marketSentiment,
+      nebiusAIStatus: isNebiusConnected ? 'Connected' : 'Disconnected',
+      bestOpportunity: bestOpportunity ? {
+        symbol: bestOpportunity.symbol,
+        action: bestOpportunity.action,
+        confidence: bestOpportunity.confidence,
+        reasoning: bestOpportunity.reasoning,
+        modelUsed: bestOpportunity.modelUsed
+      } : null,
+      analyses: storedAnalyses
+    };
+    
+    console.log('🎯 Nebius AI Analysis Summary:', {
+      total: summary.totalAnalyzed,
+      buy: summary.buySignals,
+      sell: summary.sellSignals,
+      hold: summary.holdSignals,
+      sentiment: summary.marketSentiment,
+      nebiusStatus: summary.nebiusAIStatus,
+      best: summary.bestOpportunity?.symbol || 'None'
     });
-  }
-
-  if (object.opeartion === Opeartion.Sell) {
-    await prisma.chat.create({
-      data: {
-        reasoning: reasoning || "<no reasoning>",
-        chat: object.chat || "<no chat>",
-        userPrompt,
-        tradings: {
-          createMany: {
-            data: {
-              symbol: Symbol.BTC,
-              opeartion: object.opeartion,
-            },
-          },
-        },
-      },
-    });
-  }
-
-  if (object.opeartion === Opeartion.Hold) {
-    const shouldAdjustProfit =
-      object.adjustProfit?.stopLoss && object.adjustProfit?.takeProfit;
-    await prisma.chat.create({
-      data: {
-        reasoning: reasoning || "<no reasoning>",
-        chat: object.chat || "<no chat>",
-        userPrompt,
-        tradings: {
-          createMany: {
-            data: {
-              symbol: Symbol.BTC,
-              opeartion: object.opeartion,
-              stopLoss: shouldAdjustProfit
-                ? object.adjustProfit?.stopLoss
-                : undefined,
-              takeProfit: shouldAdjustProfit
-                ? object.adjustProfit?.takeProfit
-                : undefined,
-            },
-          },
-        },
-      },
-    });
+    
+    return summary;
+    
+  } catch (error) {
+    console.error('❌ Error in AI analysis:', error);
+    
+    // Return fallback analysis
+    return {
+      timestamp: new Date().toISOString(),
+      totalAnalyzed: 0,
+      buySignals: 0,
+      sellSignals: 0,
+      holdSignals: 0,
+      bestOpportunity: null,
+      error: (error as Error).message,
+      analyses: []
+    };
   }
 }
+
+export default runAIAnalysis

@@ -1,4 +1,4 @@
-import { run } from "@/lib/ai/run";
+import { runAIAnalysis } from "@/lib/ai/run";
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 
@@ -17,7 +17,7 @@ export const GET = async (request: NextRequest) => {
     return new Response("Invalid token", { status: 401 });
   }
 
-  await run(Number(process.env.START_MONEY));
+  await runAIAnalysis();
 
   return new Response("Process executed successfully");
 };

@@ -1,0 +1,49 @@
+# Prometheus configuration for Live Trading Bot monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "trading_bot_rules.yml"
+
+scrape_configs:
+  # Trading Bot Application Metrics
+  - job_name: 'trading-bot'
+    static_configs:
+      - targets: ['trading-bot:9090']
+    scrape_interval: 10s
+    metrics_path: '/api/metrics'
+    scrape_timeout: 5s
+
+  # Node.js Application Metrics
+  - job_name: 'trading-bot-app'
+    static_configs:
+      - targets: ['trading-bot:3000']
+    scrape_interval: 30s
+    metrics_path: '/api/metrics/nodejs'
+    scrape_timeout: 10s
+
+  # PostgreSQL Database Metrics
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  # Redis Metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # System Metrics (if node_exporter is added)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093

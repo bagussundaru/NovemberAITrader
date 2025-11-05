@@ -1,0 +1,37 @@
+{
+  "isRunning": true,
+  "startTime": "2025-11-03T15:22:10.543Z",
+  "lastSaveTime": "2025-11-03T15:22:10.543Z",
+  "activePositions": [],
+  "pendingSignals": [],
+  "marketDataCache": {},
+  "errorCounts": {},
+  "lastErrors": {},
+  "recoveryAttempts": {},
+  "connectionStatus": {
+    "nebius": "disconnected",
+    "gate": "disconnected",
+    "network": "offline",
+    "lastCheck": "2025-11-03T15:22:10.541Z"
+  },
+  "circuitBreakers": {
+    "nebius": {
+      "isOpen": false,
+      "failureCount": 0,
+      "lastFailure": "1970-01-01T00:00:00.000Z",
+      "nextRetryTime": "1970-01-01T00:00:00.000Z"
+    },
+    "gate": {
+      "isOpen": false,
+      "failureCount": 0,
+      "lastFailure": "1970-01-01T00:00:00.000Z",
+      "nextRetryTime": "1970-01-01T00:00:00.000Z"
+    },
+    "network": {
+      "isOpen": false,
+      "failureCount": 0,
+      "lastFailure": "1970-01-01T00:00:00.000Z",
+      "nextRetryTime": "1970-01-01T00:00:00.000Z"
+    }
+  }
+}

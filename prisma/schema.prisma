@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -72,4 +73,268 @@ enum ModelType {
   DeepseekThinking
   Qwen
   Doubao
+}
+
+// Trading Bot Models
+model TradingPosition {
+  id String @id @default(uuid())
+
+  symbol        String
+  side          PositionSide
+  amount        Float
+  entryPrice    Float
+  currentPrice  Float?
+  unrealizedPnL Float?
+  status        PositionStatus @default(OPEN)
+
+  // Relationships
+  tradeExecutions TradeExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol, status])
+  @@index([createdAt])
+}
+
+model TradeExecution {
+  id String @id @default(uuid())
+
+  orderId String @unique
+  symbol  String
+  side    TradeSide
+  amount  Float
+  price   Float
+  fee     Float    @default(0)
+  status  TradeStatus @default(PENDING)
+
+  // Relationships
+  position   TradingPosition? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  positionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol, status])
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model TradingSignal {
+  id String @id @default(uuid())
+
+  symbol     String
+  action     SignalAction
+  confidence Float
+  targetPrice Float?
+  stopLoss   Float?
+  reasoning  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([symbol, action])
+  @@index([createdAt])
+}
+
+model MarketData {
+  id String @id @default(uuid())
+
+  symbol    String
+  price     Float
+  volume    Float
+  orderBook Json? // Store order book as JSON
+  
+  // Technical indicators
+  rsi           Float?
+  macd          Float?
+  movingAverage Float?
+
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@index([symbol, timestamp])
+  @@index([timestamp])
+}
+
+// Enums for Trading Bot
+enum PositionSide {
+  BUY
+  SELL
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+enum TradeStatus {
+  PENDING
+  FILLED
+  CANCELLED
+  FAILED
+}
+
+enum SignalAction {
+  BUY
+  SELL
+  HOLD
+}
+
+model AIAnalysis {
+  id String @id @default(uuid())
+
+  symbol         String
+  action         SignalAction
+  confidence     Float
+  reasoning      String
+  technicalData  String? // JSON string of technical indicators
+  riskData       String? // JSON string of risk assessment
+  modelUsed      String
+  timestamp      DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([symbol, action])
+  @@index([timestamp])
+  @@index([createdAt])
+}
+enum ExchangeType {
+  BINANCE_SPOT
+  BINANCE_FUTURES
+  BYBIT
+  OKX
+  GATEIO
+  HYPERLIQUID
+  BITGET
+  KUCOIN
+  MEXC
+  BINGX
+  PHEMEX
+  WOO
+  DERIBIT
+  BITFINEX
+  KRAKEN
+  COINBASE
+  GEMINI
+  BITSTAMP
+  HUOBI
+  POLONIEX
+  BITTREX
+  CRYPTO_COM
+  FTX
+  BITMART
+  ASCENDEX
+  LBANK
+  PROBIT
+  DIGIFINEX
+  HOTBIT
+  LATOKEN
+  COINSBIT
+  P2PB2B
+  EXMO
+  YOBIT
+  LIVECOIN
+  TIDEX
+  CEX_IO
+  HITBTC
+  MERCATOX
+  CREX24
+  STEX
+  SISTEMKOIN
+  INDODAX
+  TOKOCRYPTO
+  ZIPMEX
+  PINTU
+  REKENINGKU
+  TRIV
+  NANOVEST
+  PLUANG
+  AJAIB
+  BIBIT
+  BAREKSA
+  MODALKU
+  INVESTREE
+  KOINWORKS
+  AKSELERAN
+  AMARTHA
+  CROWDO
+  ETHIS
+  SYARFI
+  ALAMI
+  DANAMAS
+  MEKAR
+  KOINKU
+  RUPIAH_TOKEN
+  TOKO_TOKEN
+}
+
+model ExchangeApiKey {
+  id String @id @default(uuid())
+
+  // Exchange Information
+  exchangeType    ExchangeType
+  exchangeName    String
+  displayName     String // User-friendly name
+  
+  // Encrypted API Credentials
+  apiKey          String // Encrypted
+  apiSecret       String // Encrypted
+  passphrase      String? // For exchanges that require it (encrypted)
+  
+  // Configuration
+  isTestnet       Boolean @default(true)
+  isActive        Boolean @default(true)
+  
+  // Trading Settings
+  maxLeverage     Int @default(10)
+  riskPerTrade    Float @default(2.0) // Percentage
+  
+  // Metadata
+  lastUsed        DateTime?
+  totalTrades     Int @default(0)
+  totalProfit     Float @default(0)
+  
+  // Security
+  encryptionKey   String // Key used for encryption
+  
+  // Relations
+  connections     ExchangeConnection[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([exchangeType])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model ExchangeConnection {
+  id String @id @default(uuid())
+
+  exchangeApiKeyId String
+  exchangeApiKey   ExchangeApiKey @relation(fields: [exchangeApiKeyId], references: [id], onDelete: Cascade)
+  
+  // Connection Status
+  isConnected     Boolean @default(false)
+  lastPing        DateTime?
+  connectionError String?
+  
+  // Balance Information
+  totalBalance    Float @default(0)
+  availableBalance Float @default(0)
+  
+  // Performance Metrics
+  latency         Int? // in milliseconds
+  successRate     Float @default(100) // percentage
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([exchangeApiKeyId])
+  @@index([isConnected])
 }
