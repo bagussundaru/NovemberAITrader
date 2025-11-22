@@ -1,0 +1,12 @@
+[Unit]
+Description=Trading Bot Metrics Collection Timer
+Documentation=https://github.com/bagussundaru/NovemberAITrader
+
+[Timer]
+# Run every 5 minutes
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,25 @@
+[Unit]
+Description=Trading Bot Health Monitor
+Documentation=https://github.com/bagussundaru/NovemberAITrader
+After=trading-bot.service
+Requires=trading-bot.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/NovemberAITrader
+
+# Run health check every minute
+ExecStart=/bin/bash /root/NovemberAITrader/deployment/scripts/health-monitor.sh
+
+# Restart policy
+Restart=always
+RestartSec=60
+
+# Logging
+StandardOutput=append:/var/log/trading-bot/monitor.log
+StandardError=append:/var/log/trading-bot/monitor-error.log
+SyslogIdentifier=trading-bot-monitor
+
+[Install]
+WantedBy=multi-user.target

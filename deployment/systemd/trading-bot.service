@@ -1,0 +1,46 @@
+[Unit]
+Description=AI Trading Bot - Automated Crypto Trading System
+Documentation=https://github.com/bagussundaru/NovemberAITrader
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/NovemberAITrader
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+
+# Start the Next.js application
+ExecStart=/usr/bin/npm start
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=5min
+StartLimitBurst=5
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=2G
+CPUQuota=200%
+
+# Logging
+StandardOutput=append:/var/log/trading-bot/output.log
+StandardError=append:/var/log/trading-bot/error.log
+SyslogIdentifier=trading-bot
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/root/NovemberAITrader
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
