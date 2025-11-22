@@ -38,14 +38,14 @@ import { getProxyDispatcher } from '@/lib/utils/proxy-dispatcher'
 
 export class NebiusAIService {
   private apiKey: string;
-  private baseUrl: string = 'https://api.studio.nebius.ai/v1';
-  private model: string = 'meta-llama/Meta-Llama-3.1-8B-Instruct';
-  private fastModel: string = 'meta-llama/Meta-Llama-3.1-8B-Instruct-fast';
+  private baseUrl: string = 'https://api.deepseek.com';
+  private model: string = 'deepseek-chat';
+  private fastModel: string = 'deepseek-chat';
 
   constructor() {
-    this.apiKey = process.env.NEBIUS_API_KEY || process.env.NEBIUS_JWT_TOKEN || '';
+    this.apiKey = process.env.DEEPSEEK_API_KEY || '';
     if (!this.apiKey) {
-      throw new Error('Missing Nebius AI credentials: set NEBIUS_API_KEY or NEBIUS_JWT_TOKEN');
+      throw new Error('Missing DeepSeek AI credentials: set DEEPSEEK_API_KEY in .env file');
     }
   }
 
@@ -54,8 +54,8 @@ export class NebiusAIService {
    */
   async analyzeWithPrompt(prompt: string, maxTokens: number = 2000): Promise<any> {
     try {
-      console.log('🐋 Nebius AI analyzing with whale detection prompt...');
-      
+      console.log('🐋 AI Engine analyzing with whale detection prompt...');
+
       const messages = [
         {
           role: "system",
@@ -71,7 +71,7 @@ export class NebiusAIService {
       const content = response.choices[0]?.message?.content;
 
       if (!content) {
-        throw new Error('No content in Nebius AI response');
+        throw new Error('No content in AI Engine response');
       }
 
       // Try to extract and parse JSON from the response
@@ -87,17 +87,17 @@ export class NebiusAIService {
           try {
             return JSON.parse(jsonMatch[1]);
           } catch (extractError) {
-            console.warn('⚠️ Failed to parse extracted JSON from Nebius AI response');
+            console.warn('⚠️ Failed to parse extracted JSON from AI Engine response');
           }
         }
-        
-        console.warn('⚠️ Nebius AI response is not valid JSON, returning raw content');
+
+        console.warn('⚠️ AI Engine response is not valid JSON, returning raw content');
         console.log('Raw response:', content.substring(0, 200));
         return content;
       }
 
     } catch (error) {
-      console.error('❌ Error in Nebius AI whale analysis:', error);
+      console.error('❌ Error in AI Engine whale analysis:', error);
       throw error;
     }
   }
@@ -124,14 +124,14 @@ export class NebiusAIService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Nebius AI API Error: ${response.status} - ${errorText}`);
+      throw new Error(`DeepSeek AI API Error: ${response.status} - ${errorText}`);
     }
 
     return response.json();
   }
 
   async analyzeCryptocurrency(
-    symbol: string, 
+    symbol: string,
     marketData: {
       price: number;
       change24h: number;
@@ -142,7 +142,7 @@ export class NebiusAIService {
     }
   ): Promise<TradingAnalysisResult> {
     try {
-      console.log(`🤖 Nebius AI analyzing ${symbol}...`);
+      console.log(`🤖 AI Engine (DeepSeek) analyzing ${symbol}...`);
 
       // Calculate technical indicators
       const rsi = marketData.rsi || this.calculateRSI(marketData.price, marketData.change24h);
@@ -201,13 +201,13 @@ Provide your analysis as JSON only.`
       ];
 
       const response = await this.makeRequest(analysisPrompt, this.model, 400);
-      
+
       if (!response.choices || response.choices.length === 0) {
-        throw new Error('No response from Nebius AI');
+        throw new Error('No response from AI Engine');
       }
 
       const aiResponse = response.choices[0].message.content;
-      console.log(`🎯 Nebius AI raw response for ${symbol}:`, aiResponse);
+      console.log(`🎯 AI Engine raw response for ${symbol}:`, aiResponse);
 
       // Parse AI response
       let parsedAnalysis;
@@ -242,7 +242,7 @@ Provide your analysis as JSON only.`
           stopLoss: parsedAnalysis.stopLoss || 3,
           takeProfit: parsedAnalysis.takeProfit || 10
         },
-        modelUsed: `Nebius-${this.model}`,
+        modelUsed: `AI-Engine-${this.model}`,
         timestamp: new Date().toISOString()
       };
 
@@ -251,12 +251,12 @@ Provide your analysis as JSON only.`
         console.log(`💰 Token usage for ${symbol}: ${response.usage.total_tokens} tokens (~$${(response.usage.total_tokens * 0.0001).toFixed(4)})`);
       }
 
-      console.log(`✅ Nebius AI analysis completed for ${symbol}: ${analysis.action} (${(analysis.confidence * 100).toFixed(1)}%)`);
-      
+      console.log(`✅ AI Engine analysis completed for ${symbol}: ${analysis.action} (${(analysis.confidence * 100).toFixed(1)}%)`);
+
       return analysis;
 
     } catch (error) {
-      console.error(`❌ Nebius AI analysis failed for ${symbol}:`, error);
+      console.error(`❌ AI Engine analysis failed for ${symbol}:`, error);
       
       // Return fallback analysis on error
       return this.createFallbackAnalysis(symbol, marketData, `Error: ${(error as Error).message}`);
@@ -356,7 +356,7 @@ Respond with only: BULLISH/BEARISH/NEUTRAL + confidence percentage + one sentenc
         stopLoss: 3,
         takeProfit: 10
       },
-      modelUsed: 'Nebius-Fallback',
+      modelUsed: 'AI-Engine-Fallback',
       timestamp: new Date().toISOString()
     };
   }
@@ -373,7 +373,7 @@ Respond with only: BULLISH/BEARISH/NEUTRAL + confidence percentage + one sentenc
       const response = await this.makeRequest(testPrompt, this.fastModel, 50);
       return response.choices && response.choices.length > 0;
     } catch (error) {
-      console.error('Nebius AI connection test failed:', error);
+      console.error('DeepSeek AI connection test failed:', error);
       return false;
     }
   }

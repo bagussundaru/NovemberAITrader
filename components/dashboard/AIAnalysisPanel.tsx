@@ -8,7 +8,7 @@ export default function AIAnalysisPanel({ aiAnalysis }: AIAnalysisPanelProps) {
   if (!aiAnalysis || !aiAnalysis.success) {
     return (
       <div className="card">
-        <h3 className="card-title">🤖 Nebius AI Market Analysis</h3>
+        <h3 className="card-title">🤖 AI Engine Market Analysis</h3>
         <p style={{ color: 'var(--color-text-muted)' }}>Loading AI analysis...</p>
       </div>
     );
@@ -21,9 +21,9 @@ export default function AIAnalysisPanel({ aiAnalysis }: AIAnalysisPanelProps) {
     <div className="card">
       <div className="card-header">
         <div>
-          <h3 className="card-title">🤖 Nebius AI Market Analysis</h3>
+          <h3 className="card-title">🤖 AI Engine Market Analysis</h3>
           <p className="card-subtitle">
-            Real-time market sentiment and trading signals powered by DeepSeek-V3
+            Real-time market sentiment and trading signals powered by DeepSeek AI
           </p>
         </div>
         <div className="flex" style={{ gap: 'var(--spacing-sm)', alignItems: 'center' }}>

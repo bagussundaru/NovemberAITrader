@@ -80,7 +80,7 @@ export default function SystemHealth({ health }: SystemHealthProps) {
               </strong>
             </div>
             <div>
-              <span style={{ color: 'var(--color-text-muted)' }}>Nebius AI:</span>{' '}
+              <span style={{ color: 'var(--color-text-muted)' }}>AI Engine:</span>{' '}
               <strong style={{ color: health?.services?.nebiusAI?.status === 'connected' ? 'var(--color-success)' : 'var(--color-danger)' }}>
                 {health?.services?.nebiusAI?.status === 'connected' ? 'Connected' : 'Disconnected'}
               </strong>

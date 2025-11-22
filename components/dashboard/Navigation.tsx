@@ -10,7 +10,7 @@ export default function Navigation({ activeTab, setActiveTab }: NavigationProps)
     { id: 'dashboard', label: '📊 Dashboard', badge: 'LIVE' },
     { id: 'exchanges', label: '🔑 Exchange Management' },
     { id: 'market', label: '📈 Market' },
-    { id: 'ai', label: '🤖 Nebius AI', badge: 'ACTIVE' },
+    { id: 'ai', label: '🤖 AI Engine', badge: 'ACTIVE' },
     { id: 'settings', label: '⚙️ Pengaturan' }
   ];
 
