@@ -9,7 +9,7 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-export const deepseekv31 = openrouter("deepseek/deepseek-v3.2-exp");
+export const deepseekv31 = openrouter("deepseek-ai/DeepSeek-V3-0324");
 
 export const deepseekR1 = openrouter("deepseek/deepseek-r1-0528");
 

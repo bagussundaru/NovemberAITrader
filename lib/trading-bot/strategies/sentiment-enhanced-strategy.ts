@@ -1,5 +1,6 @@
 import { SentimentAnalyzer, MarketSentiment } from '@/lib/ai/sentiment-analyzer';
-import { MultiTimeframeAnalyzer, MultiTimeframeAnalysis } from '@/lib/ai/multi-timeframe-analyzer';
+// TEMPORARILY DISABLED: File corrupted, needs to be fixed
+// import { MultiTimeframeAnalyzer, MultiTimeframeAnalysis } from '@/lib/ai/multi-timeframe-analyzer';
 import { BinanceFuturesClient } from '@/lib/exchanges/binance-futures-client';
 import { NebiusAIService } from '@/lib/ai/nebius-ai-service';
 

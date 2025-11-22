@@ -104,8 +104,12 @@ export class MarketDataService extends EventEmitter implements IMarketDataServic
       this.initializePriceHistory(symbol);
       
       // Fetch initial market data
-      const initialData = await this.fetchMarketData(symbol);
-      this.updateMarketDataCache(symbol, initialData);
+      try {
+        const initialData = await this.fetchMarketData(symbol);
+        this.updateMarketDataCache(symbol, initialData);
+      } catch (e) {
+        this.errorHandler.logError(e as Error, `Initial market data fetch failed for ${symbol}`);
+      }
       
       // Set up real-time updates
       if (this.config.enableRealTimeUpdates) {
@@ -117,15 +121,10 @@ export class MarketDataService extends EventEmitter implements IMarketDataServic
       
       console.log(`Successfully subscribed to market data for ${symbol}`);
     } catch (error) {
-      const networkError: NetworkError = {
-        name: 'MarketDataSubscriptionError',
-        message: `Failed to subscribe to ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        code: 'SUBSCRIPTION_FAILED',
-        retryable: true
-      };
-      
-      this.errorHandler.handleNetworkError(networkError);
-      throw networkError;
+      this.errorHandler.logError(error as Error, `Subscribe to ${symbol} failed, scheduling retry`);
+      setTimeout(() => {
+        this.subscribeToMarket(symbol).catch(() => {});
+      }, 5000);
     }
   }
 
@@ -320,15 +319,14 @@ export class MarketDataService extends EventEmitter implements IMarketDataServic
     try {
       // Subscribe to all configured trading pairs
       for (const symbol of this.config.tradingPairs) {
-        await this.subscribeToMarket(symbol);
+        this.subscribeToMarket(symbol).catch(() => {});
       }
 
       this.isRunning = true;
       this.emit('collectionStarted');
       console.log('Real-time market data collection started');
     } catch (error) {
-      this.errorHandler.logError(error as Error, 'Start real-time collection');
-      throw error;
+      this.errorHandler.logError(error as Error, 'Start real-time collection (continuing despite errors)');
     }
   }
 

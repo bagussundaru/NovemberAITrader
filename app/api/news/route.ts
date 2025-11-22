@@ -71,12 +71,12 @@ export async function GET() {
       }
     ];
 
-    // Try to fetch real news (fallback to mock if fails)
+    // Try to fetch real news from CoinGecko API (free, no API key needed)
     let realNews: NewsItem[] = [];
     
     try {
-      // Attempt to fetch from a free news API
-      const response = await fetch('https://api.coingecko.com/api/v3/news', {
+      // CoinGecko trending coins as news source
+      const response = await fetch('https://api.coingecko.com/api/v3/search/trending', {
         headers: {
           'Accept': 'application/json',
         },
@@ -85,17 +85,49 @@ export async function GET() {
       
       if (response.ok) {
         const data = await response.json();
-        realNews = data.data?.slice(0, 5).map((item: any) => ({
-          title: item.title || 'Crypto Market Update',
-          description: item.description || 'Latest developments in cryptocurrency markets',
-          url: item.url || '#',
-          publishedAt: item.created_at || new Date().toISOString(),
-          source: item.author || 'CoinGecko',
-          impact: 'MEDIUM' as const
-        })) || [];
+        realNews = data.coins?.slice(0, 5).map((item: any, index: number) => {
+          const coin = item.item;
+          // Determine impact based on market cap rank
+          let impact: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+          if (coin.market_cap_rank <= 10) impact = 'HIGH';
+          else if (coin.market_cap_rank > 50) impact = 'LOW';
+          
+          return {
+            title: `${coin.name} (${coin.symbol}) Trending - Rank #${coin.market_cap_rank}`,
+            description: `${coin.name} is currently trending with a market cap rank of #${coin.market_cap_rank}. Price: $${coin.data?.price || 'N/A'}`,
+            url: `https://www.coingecko.com/en/coins/${coin.id}`,
+            publishedAt: new Date(Date.now() - index * 1000 * 60 * 30).toISOString(),
+            source: 'CoinGecko Trending',
+            impact
+          };
+        }) || [];
       }
     } catch (error) {
-      console.log('Failed to fetch real news, using mock data');
+      console.log('Failed to fetch from CoinGecko, trying alternative...');
+      
+      // Fallback to Binance announcements
+      try {
+        const response = await fetch('https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&pageSize=5', {
+          headers: {
+            'Accept': 'application/json',
+          },
+          next: { revalidate: 300 }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          realNews = data.data?.catalogs?.[0]?.articles?.slice(0, 5).map((item: any) => ({
+            title: item.title || 'Binance Announcement',
+            description: item.brief || 'Latest announcement from Binance',
+            url: `https://www.binance.com/en/support/announcement/${item.code}`,
+            publishedAt: new Date(item.releaseDate).toISOString(),
+            source: 'Binance',
+            impact: 'HIGH' as const
+          })) || [];
+        }
+      } catch (binanceError) {
+        console.log('Failed to fetch real news, using mock data');
+      }
     }
 
     const newsData = realNews.length > 0 ? realNews : mockNews;
@@ -105,7 +137,7 @@ export async function GET() {
       data: {
         news: newsData,
         lastUpdate: new Date().toISOString(),
-        source: realNews.length > 0 ? 'CoinGecko API' : 'Mock Data'
+        source: realNews.length > 0 ? (newsData[0]?.source.includes('Binance') ? 'Binance API' : 'CoinGecko API') : 'Mock Data'
       },
       timestamp: new Date().toISOString()
     });

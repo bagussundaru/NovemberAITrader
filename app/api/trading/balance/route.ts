@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from '@prisma/client'
 import { getBinanceClient } from "@/lib/exchanges/binance-futures-client";
+import { BybitService } from "@/lib/trading-bot/services/bybit/bybit-service";
 
 const prisma = new PrismaClient()
 
@@ -10,11 +11,50 @@ const prisma = new PrismaClient()
  */
 export async function GET() {
   try {
+    const provider = (process.env.EXCHANGE_PROVIDER || 'BINANCE').toUpperCase();
+    if (provider === 'BYBIT') {
+      const errorHandler = { logError: (e: Error) => console.error(e) } as any;
+      const bybitBase = process.env.BYBIT_BASE_URL || (process.env.BYBIT_TESTNET === 'true' ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com');
+      const bybit = new BybitService({
+        baseUrl: bybitBase,
+        apiKey: process.env.BYBIT_API_KEY || '',
+        apiSecret: process.env.BYBIT_API_SECRET || '',
+        testnet: process.env.BYBIT_TESTNET === 'true'
+      }, errorHandler);
+
+      await bybit.authenticate();
+      const balancesMap = await bybit.getAccountBalance();
+      const totals = Object.values(balancesMap).reduce((acc: { available: number; locked: number }, b: any) => {
+        acc.available += Number((b as any).available || 0);
+        acc.locked += Number((b as any).locked || 0);
+        return acc;
+      }, { available: 0, locked: 0 });
+
+      const totalBalance = totals.available + totals.locked;
+      return NextResponse.json({
+        success: true,
+        data: {
+          total: totalBalance,
+          available: totals.available,
+          locked: totals.locked,
+          currency: 'USDT',
+          balances: balancesMap,
+          performance: {
+            totalPnL: 0,
+            dailyPnL: 0,
+            roi: 0
+          },
+          positions: [],
+          lastUpdate: new Date().toISOString()
+        },
+        source: 'Bybit'
+      });
+    }
+
     // Try to get real balance from Binance first
     const binanceClient = getBinanceClient();
     
     try {
-      // Test connection
       const isConnected = await binanceClient.testConnection();
       if (isConnected) {
         // Get real balance and positions from Binance
@@ -74,7 +114,7 @@ export async function GET() {
     const totalPnL = openPositions.reduce((sum, pos) => sum + (pos.unrealizedPnL || 0), 0)
     
     // Starting balance + P&L
-    const startingBalance = 10000
+    const startingBalance = Number(process.env.STARTING_BALANCE || 10000)
     const totalBalance = startingBalance + totalPnL
     const availableBalance = totalBalance - lockedBalance
 

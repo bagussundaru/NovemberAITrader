@@ -316,10 +316,13 @@ let binanceClient: BinanceFuturesClient | null = null;
 
 export function getBinanceClient(): BinanceFuturesClient {
   if (!binanceClient) {
-    const apiKey = process.env.BINANCE_API_KEY || '76fb2a378ee0ca45e304830483f5a775865e1c98f1832c6ab01d3417c9db52d5';
-    const apiSecret = process.env.BINANCE_API_SECRET || '652d9989ae15cfab4325042450a2899de9e389661216a54af7180d553b81900f';
-    
-    binanceClient = new BinanceFuturesClient(apiKey, apiSecret, true); // testnet = true
+    const apiKey = process.env.BINANCE_API_KEY || '';
+    const apiSecret = process.env.BINANCE_API_SECRET || '';
+    if (!apiKey || !apiSecret) {
+      throw new Error('Missing Binance API credentials: BINANCE_API_KEY and BINANCE_API_SECRET');
+    }
+    const testnet = process.env.BINANCE_TESTNET === 'false' ? false : true;
+    binanceClient = new BinanceFuturesClient(apiKey, apiSecret, testnet);
   }
   
   return binanceClient;

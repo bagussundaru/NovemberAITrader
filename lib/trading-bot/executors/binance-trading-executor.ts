@@ -105,7 +105,8 @@ export class BinanceTradingExecutor {
    * Create signature for Binance API requests
    */
   private createSignature(queryString: string): string {
-    const apiSecret = process.env.BINANCE_API_SECRET || '652d9989ae15cfab4325042450a2899de9e389661216a54af7180d553b81900f';
+    const apiSecret = process.env.BINANCE_API_SECRET || '';
+    if (!apiSecret) throw new Error('Missing BINANCE_API_SECRET');
     return crypto
       .createHmac('sha256', apiSecret)
       .update(queryString)
@@ -121,7 +122,8 @@ export class BinanceTradingExecutor {
     method: 'GET' | 'POST' | 'DELETE' = 'GET'
   ): Promise<any> {
     const baseUrl = 'https://testnet.binancefuture.com';
-    const apiKey = process.env.BINANCE_API_KEY || '76fb2a378ee0ca45e304830483f5a775865e1c98f1832c6ab01d3417c9db52d5';
+    const apiKey = process.env.BINANCE_API_KEY || '';
+    if (!apiKey) throw new Error('Missing BINANCE_API_KEY');
     
     const timestamp = Date.now();
     const queryParams = new URLSearchParams({

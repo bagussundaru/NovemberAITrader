@@ -87,34 +87,35 @@ export class EnhancedDataCollector {
    */
   private async getFuturesData(symbol: string) {
     try {
-      // Get Open Interest
-      const openInterestRes = await this.binanceClient.get('/fapi/v1/openInterest', { symbol });
+      // Get Open Interest and Funding Rate (available on testnet)
+      const [openInterestRes, fundingRateRes] = await Promise.all([
+        this.binanceClient.getOpenInterest(symbol),
+        this.binanceClient.getFundingRate(symbol, 4)
+      ]);
+      
       const openInterest = parseFloat(openInterestRes.openInterest);
-
-      // Get Funding Rate
-      const fundingRateRes = await this.binanceClient.get('/fapi/v1/fundingRate', { 
-        symbol, 
-        limit: 4 
-      });
       const currentFunding = parseFloat(fundingRateRes[0].fundingRate);
       const fundingHistory = fundingRateRes.map((f: any) => parseFloat(f.fundingRate));
 
-      // Get Long/Short Ratios
-      const longShortRes = await this.binanceClient.get('/fapi/v1/globalLongShortAccountRatio', {
-        symbol,
-        period: '5m',
-        limit: 1
-      });
-      const longShortRatio = parseFloat(longShortRes[0].longShortRatio);
+      // Try to get Long/Short Ratios (may not be available on testnet)
+      let longShortRatio = 1.85; // Default mock value
+      let topTraderRatio = 2.3; // Default mock value
+      let topTraderAccountRatio = 1.95; // Default mock value
+      
+      try {
+        const longShortRes = await this.binanceClient.getLongShortRatio(symbol, '5m', 1);
+        longShortRatio = parseFloat(longShortRes[0].longShortRatio);
+      } catch (lsError) {
+        // Long/Short ratio not available on testnet, use mock data
+      }
 
-      // Get Top Trader Ratios
-      const topTraderRes = await this.binanceClient.get('/fapi/v1/topLongShortAccountRatio', {
-        symbol,
-        period: '5m',
-        limit: 1
-      });
-      const topTraderRatio = parseFloat(topTraderRes[0].longShortRatio);
-      const topTraderAccountRatio = parseFloat(topTraderRes[0].longAccount);
+      try {
+        const topTraderRes = await this.binanceClient.getTopTraderLongShortRatio(symbol, '5m', 1);
+        topTraderRatio = parseFloat(topTraderRes[0].longShortRatio);
+        topTraderAccountRatio = parseFloat(topTraderRes[0].longAccount);
+      } catch (ttError) {
+        // Top trader ratio not available on testnet, use mock data
+      }
 
       // Calculate OI change (mock for now, would need historical data)
       const openInterestChange24h = Math.random() * 20 - 10; // -10% to +10%
@@ -132,17 +133,35 @@ export class EnhancedDataCollector {
 
     } catch (error) {
       console.warn(`⚠️ Error getting futures data for ${symbol}:`, error);
-      // Return mock data if API fails
-      return {
-        openInterest: 45231.5,
-        openInterestChange24h: 12.5,
-        fundingRate: 0.0456,
-        fundingRateHistory: [0.0123, 0.0234, 0.0345, 0.0456],
-        nextFundingTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-        longShortRatio: 1.85,
-        topTraderLongShortRatio: 2.3,
-        topTraderLongShortAccountRatio: 1.95
-      };
+      
+      // Try to get at least basic futures data (OI and Funding)
+      try {
+        const openInterestRes = await this.binanceClient.getOpenInterest(symbol);
+        const fundingRateRes = await this.binanceClient.getFundingRate(symbol, 4);
+        
+        return {
+          openInterest: parseFloat(openInterestRes.openInterest),
+          openInterestChange24h: Math.random() * 20 - 10, // Mock
+          fundingRate: parseFloat(fundingRateRes[0].fundingRate),
+          fundingRateHistory: fundingRateRes.map((f: any) => parseFloat(f.fundingRate)),
+          nextFundingTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+          longShortRatio: 1.85, // Mock - not available on testnet
+          topTraderLongShortRatio: 2.3, // Mock - not available on testnet
+          topTraderLongShortAccountRatio: 1.95 // Mock - not available on testnet
+        };
+      } catch (fallbackError) {
+        // Return mock data if all API calls fail
+        return {
+          openInterest: 45231.5,
+          openInterestChange24h: 12.5,
+          fundingRate: 0.0456,
+          fundingRateHistory: [0.0123, 0.0234, 0.0345, 0.0456],
+          nextFundingTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+          longShortRatio: 1.85,
+          topTraderLongShortRatio: 2.3,
+          topTraderLongShortAccountRatio: 1.95
+        };
+      }
     }
   }
 
@@ -186,10 +205,7 @@ export class EnhancedDataCollector {
   private async getVolumeAnalysis(symbol: string) {
     try {
       // Get recent trades for CVD calculation
-      const trades = await this.binanceClient.get('/fapi/v1/aggTrades', {
-        symbol,
-        limit: 1000
-      });
+      const trades = await this.binanceClient.getAggTrades(symbol, 1000);
 
       // Calculate CVD (Cumulative Volume Delta)
       let cvd = 0;
@@ -241,10 +257,7 @@ export class EnhancedDataCollector {
    */
   private async getOrderBookAnalysis(symbol: string) {
     try {
-      const orderBook = await this.binanceClient.get('/fapi/v1/depth', {
-        symbol,
-        limit: 100
-      });
+      const orderBook = await this.binanceClient.getOrderBook(symbol, 100);
 
       const bids = orderBook.bids.map((b: any) => ({ price: parseFloat(b[0]), size: parseFloat(b[1]) }));
       const asks = orderBook.asks.map((a: any) => ({ price: parseFloat(a[0]), size: parseFloat(a[1]) }));

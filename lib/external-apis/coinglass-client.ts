@@ -165,9 +165,11 @@ export class CoinglassClient {
       headers['CG-API-KEY'] = this.apiKey;
     }
 
+    const dispatcher = (await import('@/lib/utils/proxy-dispatcher')).getProxyDispatcher();
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers,
+      dispatcher
     });
 
     if (!response.ok) {

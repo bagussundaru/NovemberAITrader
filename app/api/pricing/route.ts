@@ -1,53 +1,42 @@
 import { NextResponse } from 'next/server'
-import { getBinanceClient } from '@/lib/exchanges/binance-futures-client'
+import { BybitService } from '@/lib/trading-bot/services/bybit/bybit-service'
 
 // Symbols to track
 const TRACKED_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'DOGEUSDT'];
 
 export async function GET() {
   try {
-    const binanceClient = getBinanceClient();
-    
-    // Test connection first
-    const isConnected = await binanceClient.testConnection();
-    if (!isConnected) {
-      throw new Error('Failed to connect to Binance API');
-    }
+    const bybitBase = process.env.BYBIT_BASE_URL || 'https://api.bybit.com'
+    const bybit = new BybitService({
+      baseUrl: bybitBase,
+      apiKey: process.env.BYBIT_API_KEY || '',
+      apiSecret: process.env.BYBIT_API_SECRET || '',
+      testnet: process.env.BYBIT_TESTNET === 'true'
+    }, {
+      logError: (e: Error, c: string) => console.error(`[${c}] ${e.message}`),
+      handleNebiusError: () => {},
+      handleGateError: () => {},
+      handleNetworkError: () => {}
+    })
 
-    // Get 24hr ticker data for tracked symbols
-    const tickerPromises = TRACKED_SYMBOLS.map(symbol => 
-      binanceClient.get24hrTicker(symbol).catch(error => {
-        console.error(`Error fetching ${symbol}:`, error);
-        return null;
-      })
-    );
-
-    const tickerResults = await Promise.all(tickerPromises);
-    
-    // Format the data
-    const pricing: Record<string, any> = {};
-    
-    tickerResults.forEach((ticker, index) => {
-      if (ticker && ticker.length > 0) {
-        const data = ticker[0];
-        const symbol = TRACKED_SYMBOLS[index];
-        const displaySymbol = symbol.replace('USDT', '/USDT');
-        
+    const pricing: Record<string, any> = {}
+    for (const s of TRACKED_SYMBOLS) {
+      try {
+        const data = await bybit.getMarketData(s.replace('USDT', '/USDT'))
+        const displaySymbol = s.replace('USDT', '/USDT')
         pricing[displaySymbol] = {
           symbol: displaySymbol,
-          price: parseFloat(data.lastPrice),
-          change24h: parseFloat(data.priceChangePercent),
-          volume24h: parseFloat(data.volume),
-          high24h: parseFloat(data.highPrice),
-          low24h: parseFloat(data.lowPrice),
-          lastUpdate: new Date().toISOString(),
-          // Additional Binance data
-          openPrice: parseFloat(data.openPrice),
-          closePrice: parseFloat(data.lastPrice),
-          count: parseInt(data.count)
-        };
+          price: data.price,
+          change24h: undefined,
+          volume24h: data.volume,
+          high24h: undefined,
+          low24h: undefined,
+          lastUpdate: new Date().toISOString()
+        }
+      } catch (err) {
+        console.error(`Error fetching ${s}:`, err)
       }
-    });
+    }
 
     // If no data was fetched, return error
     if (Object.keys(pricing).length === 0) {
@@ -58,7 +47,7 @@ export async function GET() {
       success: true,
       data: pricing,
       timestamp: new Date().toISOString(),
-      source: 'Binance Futures Testnet'
+      source: process.env.BYBIT_TESTNET === 'true' ? 'Bybit Testnet' : 'Bybit Live'
     });
 
   } catch (error) {

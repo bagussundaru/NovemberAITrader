@@ -1,4 +1,5 @@
 import { NebiusAIService, NebiusConfig, NebiusError, MarketData, TradingSignal } from '../../types';
+import { getProxyDispatcher } from '../../../utils/proxy-dispatcher'
 
 export class NebiusService implements NebiusAIService {
   private config: NebiusConfig;
@@ -21,7 +22,8 @@ export class NebiusService implements NebiusAIService {
     
     // Prevent too frequent authentication attempts
     if (now - this.lastAuthAttempt < this.AUTH_RETRY_DELAY && this.retryCount > 0) {
-      throw new NebiusErrorImpl('Authentication retry delay not met', 'AUTH_RATE_LIMIT');
+      const waitMs = this.AUTH_RETRY_DELAY - (now - this.lastAuthAttempt);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
     }
 
     this.lastAuthAttempt = now;
@@ -38,7 +40,7 @@ export class NebiusService implements NebiusAIService {
         console.log('Successfully authenticated with Nebius AI platform');
         return true;
       } else {
-        throw new NebiusErrorImpl(
+        throw new NebiusError(
           `Authentication failed: ${response.status} ${response.statusText}`,
           'AUTH_FAILED',
           response.status
@@ -53,7 +55,7 @@ export class NebiusService implements NebiusAIService {
         throw error;
       }
       
-      const nebiusError = new NebiusErrorImpl(
+      const nebiusError = new NebiusError(
         `Network error during authentication: ${error.message}`,
         'NETWORK_ERROR'
       );
@@ -70,18 +72,41 @@ export class NebiusService implements NebiusAIService {
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
-      const response = await fetch(`${this.config.apiUrl}/auth/validate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.jwtToken}`
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          client_type: 'trading_bot'
-        }),
-        signal: controller.signal
-      });
+      const dispatcher = getProxyDispatcher();
+      const targetUrl = `${this.config.apiUrl}/models`;
+      const outbound = process.env.OUTBOUND_PROXY_ENDPOINT;
+      let response: Response;
+
+      if (outbound) {
+        const proxyRes = await fetch(outbound, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: targetUrl,
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${this.config.jwtToken}` }
+          }),
+          signal: controller.signal,
+          dispatcher
+        });
+        const payload = await proxyRes.json();
+        if (!payload.success) {
+          throw new Error(payload.error || 'Proxy request failed');
+        }
+        response = new Response(
+          typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data),
+          { status: payload.status || 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.config.jwtToken}`
+          },
+          signal: controller.signal,
+          dispatcher
+        });
+      }
 
       clearTimeout(timeoutId);
       return response;
@@ -150,19 +175,19 @@ export class NebiusService implements NebiusAIService {
    */
   private validateMarketData(marketData: MarketData): void {
     if (!marketData) {
-      throw new NebiusErrorImpl('Market data is required', 'INVALID_INPUT');
+      throw new NebiusError('Market data is required', 'INVALID_INPUT');
     }
 
     if (!marketData.symbol || typeof marketData.symbol !== 'string') {
-      throw new NebiusErrorImpl('Valid symbol is required', 'INVALID_INPUT');
+      throw new NebiusError('Valid symbol is required', 'INVALID_INPUT');
     }
 
     if (typeof marketData.price !== 'number' || marketData.price <= 0) {
-      throw new NebiusErrorImpl('Valid price is required', 'INVALID_INPUT');
+      throw new NebiusError('Valid price is required', 'INVALID_INPUT');
     }
 
     if (typeof marketData.timestamp !== 'number' || marketData.timestamp <= 0) {
-      throw new NebiusErrorImpl('Valid timestamp is required', 'INVALID_INPUT');
+      throw new NebiusError('Valid timestamp is required', 'INVALID_INPUT');
     }
   }
 
@@ -176,7 +201,7 @@ export class NebiusService implements NebiusAIService {
     switch (status) {
       case 429: // Rate limit
         await this.handleRateLimit();
-        throw new NebiusErrorImpl('Rate limit exceeded', 'RATE_LIMIT', 429);
+        throw new NebiusError('Rate limit exceeded', 'RATE_LIMIT', 429);
         
       case 401: // Unauthorized
         this.resetAuthentication();
@@ -185,13 +210,13 @@ export class NebiusService implements NebiusAIService {
           await this.authenticate();
           return; // Continue with retry
         }
-        throw new NebiusErrorImpl('Authentication failed', 'AUTH_FAILED', 401);
+        throw new NebiusError('Authentication failed', 'AUTH_FAILED', 401);
         
       case 400: // Bad request
-        throw new NebiusErrorImpl(`Bad request: ${statusText}`, 'BAD_REQUEST', 400);
+        throw new NebiusError(`Bad request: ${statusText}`, 'BAD_REQUEST', 400);
         
       case 403: // Forbidden
-        throw new NebiusErrorImpl(`Access forbidden: ${statusText}`, 'FORBIDDEN', 403);
+        throw new NebiusError(`Access forbidden: ${statusText}`, 'FORBIDDEN', 403);
         
       case 500: // Server error
       case 502: // Bad gateway
@@ -202,10 +227,10 @@ export class NebiusService implements NebiusAIService {
           await new Promise(resolve => setTimeout(resolve, delay));
           return; // Continue with retry
         }
-        throw new NebiusErrorImpl(`Server error: ${status} ${statusText}`, 'SERVER_ERROR', status);
+        throw new NebiusError(`Server error: ${status} ${statusText}`, 'SERVER_ERROR', status);
         
       default:
-        throw new NebiusErrorImpl(
+        throw new NebiusError(
           `API request failed: ${status} ${statusText}`,
           'API_ERROR',
           status
@@ -231,25 +256,56 @@ export class NebiusService implements NebiusAIService {
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
-      const response = await fetch(`${this.config.apiUrl}/analyze/market`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.authToken}`
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          market_data: {
-            symbol: marketData.symbol,
-            price: marketData.price,
-            volume: marketData.volume,
-            timestamp: marketData.timestamp,
-            order_book: marketData.orderBook,
-            indicators: marketData.indicators
-          }
-        }),
-        signal: controller.signal
-      });
+      const dispatcher = getProxyDispatcher();
+      const targetUrl = `${this.config.apiUrl}/chat/completions`;
+      const outbound = process.env.OUTBOUND_PROXY_ENDPOINT;
+      let response: Response;
+
+      const requestBody = {
+        model: this.config.model || 'deepseek-ai/DeepSeek-V3-0324',
+        messages: [
+          { role: 'system', content: 'You are a professional crypto trading analyst. Respond with JSON only.' },
+          { role: 'user', content: `Analyze ${marketData.symbol} with price ${marketData.price}, volume ${marketData.volume}. Return JSON: {"action":"BUY|SELL|HOLD","confidence":0.xx,"target_price":number,"stop_loss":number,"reasoning":"..."}` }
+        ],
+        temperature: 0.2
+      };
+
+      if (outbound) {
+        const proxyRes = await fetch(outbound, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: targetUrl,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.authToken || this.config.jwtToken}`
+            },
+            data: requestBody
+          }),
+          signal: controller.signal,
+          dispatcher
+        });
+        const payload = await proxyRes.json();
+        if (!payload.success) {
+          throw new Error(payload.error || 'Proxy request failed');
+        }
+        response = new Response(
+          typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data),
+          { status: payload.status || 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        response = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authToken || this.config.jwtToken}`
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+          dispatcher
+        });
+      }
 
       clearTimeout(timeoutId);
       return response;
@@ -265,7 +321,7 @@ export class NebiusService implements NebiusAIService {
   private parseAnalysisResponse(response: any, symbol: string): TradingSignal {
     // Validate response structure
     if (!response || typeof response !== 'object') {
-      throw new NebiusErrorImpl('Invalid response format from Nebius AI', 'INVALID_RESPONSE');
+      throw new NebiusError('Invalid response format from Nebius AI', 'INVALID_RESPONSE');
     }
 
     // Extract recommendation data with validation
@@ -338,7 +394,7 @@ export class NebiusService implements NebiusAIService {
       return this.analyzeMarket(analysis as MarketData);
     }
     
-    throw new NebiusErrorImpl('Invalid analysis data provided', 'INVALID_INPUT');
+    throw new NebiusError('Invalid analysis data provided', 'INVALID_INPUT');
   }
 
   /**

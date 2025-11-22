@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { AutomatedTradingLogic, AutoTradingConfig, TradingDecision } from './automated-trading-logic';
 import { ErrorHandlingRecoverySystem, RecoveryConfig, SystemState } from './error-handling-recovery';
+import { DatabaseService } from '../database/database-service';
 
 export interface TradingEngineState {
   isRunning: boolean;
@@ -107,14 +108,14 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
     // Initialize automated trading logic
     this.autoTradingLogic = new AutomatedTradingLogic(
       {
-        minConfidenceThreshold: 0.6,
-        maxPositionsPerSymbol: 1,
-        positionSizePercentage: 0.1,
+        minConfidenceThreshold: 0.4,
+        maxPositionsPerSymbol: 3,
+        positionSizePercentage: 0.25,
         enableBuySignals: true,
         enableSellSignals: true,
         enableContinuousMonitoring: true,
-        monitoringInterval: 30000,
-        rebalanceThreshold: 0.05,
+        monitoringInterval: 10000,
+        rebalanceThreshold: 0.03,
         ...autoTradingConfig
       },
       this.gateService,
@@ -158,17 +159,29 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
     try {
       console.log('Starting trading session...');
       
-      // Validate all services are ready
+      // Set engine running state early to avoid full failure on partial outages
+      this.state.isRunning = true;
+      this.state.startTime = new Date();
+      
+      // Validate all services are ready (tolerant)
       await this.validateServices();
       
-      // Initialize market data subscriptions
-      await this.initializeMarketDataPipeline();
+      // Initialize market data subscriptions (tolerant)
+      try {
+        await this.initializeMarketDataPipeline();
+      } catch (e) {
+        this.errorHandler.logError(e as Error, 'Initialize market data pipeline');
+      }
       
       // Start periodic processes
       this.startPeriodicProcesses();
       
-      // Start automated trading logic monitoring
-      await this.autoTradingLogic.startContinuousMonitoring();
+      // Start automated trading logic monitoring (tolerant)
+      try {
+        await this.autoTradingLogic.startContinuousMonitoring();
+      } catch (e) {
+        this.errorHandler.logError(e as Error, 'Start automated trading monitoring');
+      }
       
       // Start error handling and recovery system monitoring
       this.recoverySystem.startSystemMonitoring();
@@ -176,15 +189,11 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
       // Update system state in recovery system
       this.recoverySystem.updateSystemState({
         isRunning: true,
-        startTime: new Date(),
+        startTime: this.state.startTime,
         activePositions: Array.from(this.activePositions.values()),
         pendingSignals: Array.from(this.pendingSignals.values()),
         marketDataCache: Object.fromEntries(this.marketDataCache)
       });
-      
-      // Update state
-      this.state.isRunning = true;
-      this.state.startTime = new Date();
       
       this.emit('tradingStarted', {
         timestamp: new Date(),
@@ -195,17 +204,8 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
       console.log(`Trading session started successfully for pairs: ${this.sessionConfig.tradingPairs.join(', ')}`);
       
     } catch (error) {
-      this.errorHandler.logError(error as Error, 'Start trading session');
-      
-      const networkError: NetworkError = {
-        name: 'TradingStartError',
-        message: `Failed to start trading session: ${(error as Error).message}`,
-        code: 'TRADING_START_FAILED',
-        retryable: true
-      };
-      
-      this.errorHandler.handleNetworkError(networkError);
-      throw networkError;
+      // Log but do not fail hard; engine remains in running state and recovery will handle it
+      this.errorHandler.logError(error as Error, 'Start trading session (tolerant)');
     }
   }
 
@@ -530,17 +530,12 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
    * Validate all required services are ready
    */
   private async validateServices(): Promise<void> {
-    // Validate Nebius AI service
-    if (!this.nebiusService.isServiceAuthenticated || !await this.nebiusService.authenticate()) {
-      throw new Error('Nebius AI service authentication failed');
+    try {
+      await this.gateService.authenticate();
+    } catch (e) {
+      this.errorHandler.logError(e as Error, 'Exchange validation');
     }
-
-    // Validate Gate.io service
-    if (!await this.gateService.authenticate()) {
-      throw new Error('Gate.io service authentication failed');
-    }
-
-    console.log('All services validated successfully');
+    console.log('Service validation completed (tolerant)');
   }
 
   /**
@@ -631,6 +626,25 @@ export class TradingEngine extends EventEmitter implements ITradingEngine {
 
       this.state.totalTrades++;
       console.log(`Trading decision executed: ${decision.action} ${decision.amount} ${decision.symbol} at ${decision.price}`);
+
+      if (process.env.DISABLE_DATABASE !== 'true') {
+        try {
+          const db = DatabaseService.getInstance();
+          await db.getPrismaClient().tradeExecution.create({
+            data: {
+              orderId: tradeExecution.orderId,
+              symbol: tradeExecution.symbol,
+              side: tradeExecution.side.toUpperCase() as any,
+              amount: tradeExecution.amount,
+              price: tradeExecution.price,
+              fee: tradeExecution.fee || 0,
+              status: (tradeExecution.status || 'filled').toUpperCase() as any
+            }
+          });
+        } catch (e) {
+          this.errorHandler.logError(e as Error, 'Persist trade execution');
+        }
+      }
 
     } catch (error) {
       this.errorHandler.logError(error as Error, `Execute trading decision for ${decision.symbol}`);

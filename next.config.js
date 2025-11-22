@@ -9,11 +9,10 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    // Enable server actions
-    serverActions: true,
+    // Enable server actions with default body size
+    serverActions: { bodySizeLimit: '2mb' },
   },
   // Optimize for production
-  swcMinify: true,
   compress: true,
 };
 

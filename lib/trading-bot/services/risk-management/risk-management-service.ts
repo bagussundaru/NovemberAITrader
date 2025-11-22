@@ -55,10 +55,11 @@ export class RiskManagementService extends BaseService implements IRiskManagemen
       }
 
       // Base position size calculation (percentage of balance)
-      const basePositionSize = balance * 0.1; // 10% of balance as default
+      const basePositionSize = balance * 0.1;
 
       // Apply confidence factor from AI signal
-      const confidenceAdjustedSize = basePositionSize * (signal.confidence / 100);
+      const confidence = Math.min(Math.max(signal.confidence, 0), 1);
+      const confidenceAdjustedSize = basePositionSize * confidence;
 
       // Apply maximum position size limit
       const maxAllowedSize = Math.min(
@@ -90,8 +91,14 @@ export class RiskManagementService extends BaseService implements IRiskManagemen
       }
 
       const lossPercentage = Math.abs(position.unrealizedPnL / (position.entryPrice * position.amount)) * 100;
+
+      const volatilityAdj = this.getVolatilityAdjustedStop(position.symbol);
+      const dynamicStop = Math.min(
+        Math.max(volatilityAdj, this.riskConfig.stopLossPercentage),
+        Math.max(this.riskConfig.stopLossPercentage * 1.5, volatilityAdj)
+      );
       
-      return lossPercentage >= this.riskConfig.stopLossPercentage;
+      return lossPercentage >= dynamicStop;
     } catch (error) {
       this.errorHandler.logError(error as Error, 'checkStopLoss');
       return false;
@@ -210,6 +217,15 @@ export class RiskManagementService extends BaseService implements IRiskManagemen
     }
 
     return { isValid: true };
+  }
+
+  private getVolatilityAdjustedStop(symbol: string): number {
+    // Placeholder ATR/volatility-based stop-loss computation
+    // In a full implementation, inject MarketDataService, compute ATR from history
+    const defaultVol = 0.05; // 5% baseline if no data
+    const multiplier = 1.0; // allow tuning via env
+    const envMult = Number(process.env.VOLATILITY_STOP_MULTIPLIER || multiplier);
+    return (defaultVol * 100) * envMult; // convert to percentage scale
   }
 
   /**

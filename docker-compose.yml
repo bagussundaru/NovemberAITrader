@@ -65,84 +65,79 @@ services:
 
   # Redis for caching and session management
   redis:
+    # disabled to reduce VM footprint
     image: redis:7-alpine
     container_name: trading-bot-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass redis_pass
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6380:6379"
+    restart: "no"
+    command: ["sh", "-c", "echo Redis disabled"]
     networks:
       - trading-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
   # Prometheus for metrics collection
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: trading-bot-prometheus
-    restart: unless-stopped
-    ports:
-      - "9091:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    networks:
-      - trading-network
+  # prometheus disabled to reduce VM load
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: trading-bot-prometheus
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9091:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/etc/prometheus/console_libraries'
+  #     - '--web.console.templates=/etc/prometheus/consoles'
+  #     - '--storage.tsdb.retention.time=200h'
+  #     - '--web.enable-lifecycle'
+  #   networks:
+  #     - trading-network
 
   # Grafana for monitoring dashboards
-  grafana:
-    image: grafana/grafana:latest
-    container_name: trading-bot-grafana
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-    networks:
-      - trading-network
+  # grafana disabled to reduce VM load
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: trading-bot-grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3001:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin123
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+  #     - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+  #   networks:
+  #     - trading-network
 
   # Nginx reverse proxy (optional)
-  nginx:
-    image: nginx:alpine
-    container_name: trading-bot-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-    depends_on:
-      - trading-bot
-    networks:
-      - trading-network
+  # nginx disabled to reduce VM load; Next.js serves directly
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: trading-bot-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+  #     - ./nginx/ssl:/etc/nginx/ssl
+  #   depends_on:
+  #     - trading-bot
+  #   networks:
+  #     - trading-network
 
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
+  # prometheus_data:
+  #   driver: local
+  # grafana_data:
+  #   driver: local
 
 networks:
   trading-network:

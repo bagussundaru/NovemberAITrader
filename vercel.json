@@ -1,0 +1,25 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["sin1"],
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_BASE_URL": "@next_public_base_url",
+    "BYBIT_API_KEY": "@bybit_api_key",
+    "BYBIT_API_SECRET": "@bybit_api_secret",
+    "BYBIT_TESTNET": "@bybit_testnet",
+    "NEBIUS_JWT_TOKEN": "@nebius_jwt_token",
+    "NEBIUS_API_URL": "@nebius_api_url",
+    "NEBIUS_MODEL": "@nebius_model",
+    "EXCHANGE_PROVIDER": "@exchange_provider",
+    "DATABASE_URL": "@database_url",
+    "JWT_SECRET": "@jwt_secret",
+    "NEXTAUTH_SECRET": "@nextauth_secret"
+  }
+}

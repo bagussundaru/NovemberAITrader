@@ -34,6 +34,8 @@ interface TradingAnalysisResult {
   timestamp: string;
 }
 
+import { getProxyDispatcher } from '@/lib/utils/proxy-dispatcher'
+
 export class NebiusAIService {
   private apiKey: string;
   private baseUrl: string = 'https://api.studio.nebius.ai/v1';
@@ -41,7 +43,10 @@ export class NebiusAIService {
   private fastModel: string = 'meta-llama/Meta-Llama-3.1-8B-Instruct-fast';
 
   constructor() {
-    this.apiKey = process.env.NEBIUS_API_KEY || 'eyJhbGciOiJIUzI1NiIsImtpZCI6IlV6SXJWd1h0dnprLVRvdzlLZWstc0M1akptWXBvX1VaVkxUZlpnMDRlOFUiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJnb29nbGUtb2F1dGgyfDExNDE3OTYwNTEwMjcyNDQ2MjIxNyIsInNjb3BlIjoib3BlbmlkIG9mZmxpbmVfYWNjZXNzIiwiaXNzIjoiYXBpX2tleV9pc3N1ZXIiLCJhdWQiOlsiaHR0cHM6Ly9uZWJpdXMtaW5mZXJlbmNlLmV1LmF1dGgwLmNvbS9hcGkvdjIvIl0sImV4cCI6MTkxMjY3MDg1MCwidXVpZCI6IjE5OWE1YWM5LTFiMjQtNDQ1Zi1hNDFmLTJjNGE0MDdlMzU5MCIsIm5hbWUiOiJNQ1AiLCJleHBpcmVzX2F0IjoiMjAzMC0wOC0xMVQwOToyNzozMCswMDAwIn0.ajJ9NJVIqpQSb6so-xJsSn0Img9EYCO8XTopZUYuHRA';
+    this.apiKey = process.env.NEBIUS_API_KEY || process.env.NEBIUS_JWT_TOKEN || '';
+    if (!this.apiKey) {
+      throw new Error('Missing Nebius AI credentials: set NEBIUS_API_KEY or NEBIUS_JWT_TOKEN');
+    }
   }
 
   /**
@@ -52,6 +57,10 @@ export class NebiusAIService {
       console.log('🐋 Nebius AI analyzing with whale detection prompt...');
       
       const messages = [
+        {
+          role: "system",
+          content: "You are a cryptocurrency trading analyst. You MUST respond with ONLY valid JSON. Do not include any text before or after the JSON object. Do not use markdown code blocks. Output raw JSON only."
+        },
         {
           role: "user",
           content: prompt
@@ -65,11 +74,25 @@ export class NebiusAIService {
         throw new Error('No content in Nebius AI response');
       }
 
-      // Try to parse as JSON
+      // Try to extract and parse JSON from the response
       try {
+        // First, try direct parsing
         return JSON.parse(content);
       } catch (parseError) {
+        // Try to extract JSON from markdown code blocks or surrounding text
+        const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || 
+                         content.match(/(\{[\s\S]*\})/);
+        
+        if (jsonMatch && jsonMatch[1]) {
+          try {
+            return JSON.parse(jsonMatch[1]);
+          } catch (extractError) {
+            console.warn('⚠️ Failed to parse extracted JSON from Nebius AI response');
+          }
+        }
+        
         console.warn('⚠️ Nebius AI response is not valid JSON, returning raw content');
+        console.log('Raw response:', content.substring(0, 200));
         return content;
       }
 
@@ -88,13 +111,15 @@ export class NebiusAIService {
       top_p: 0.9
     };
 
+    const dispatcher = getProxyDispatcher()
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      dispatcher
     });
 
     if (!response.ok) {

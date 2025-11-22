@@ -4,6 +4,7 @@
 
 import crypto from 'crypto';
 import { BaseService, RateLimiter, CircuitBreaker } from '../base';
+import { getProxyDispatcher } from '../../../utils/proxy-dispatcher'
 import { 
   GateConfig, 
   GateExchangeService, 
@@ -693,7 +694,8 @@ export class GateService extends BaseService implements GateExchangeService {
     }
 
     return this.retryWithBackoff(async () => {
-      const response = await fetch(url, options);
+      const dispatcher = getProxyDispatcher();
+      const response = await fetch(url, { ...options, dispatcher });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -737,7 +739,8 @@ export class GateService extends BaseService implements GateExchangeService {
     }
 
     return this.retryWithBackoff(async () => {
-      const response = await fetch(url, options);
+      const dispatcher = getProxyDispatcher();
+      const response = await fetch(url, { ...options, dispatcher });
       
       if (!response.ok) {
         const errorText = await response.text();

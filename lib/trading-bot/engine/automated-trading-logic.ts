@@ -53,6 +53,7 @@ export class AutomatedTradingLogic extends EventEmitter {
   private recentSignals: Map<string, TradingSignal[]> = new Map();
   private marketDataCache: Map<string, MarketData> = new Map();
   private lastDecisionTime: Map<string, Date> = new Map();
+  private aiRules: Map<string, { takeProfitPct: number; stopLossPct: number; leverage?: number }> = new Map();
   
   // Monitoring
   private monitoringTimer: NodeJS.Timeout | null = null;
@@ -402,6 +403,7 @@ export class AutomatedTradingLogic extends EventEmitter {
       }
 
       const latestSignal = recentSignals[recentSignals.length - 1];
+      this.updateRulesFromSignal(latestSignal, marketData.price);
       
       // Skip if signal is too old (more than 5 minutes)
       const signalAge = Date.now() - latestSignal.timestamp.getTime();
@@ -450,9 +452,10 @@ export class AutomatedTradingLogic extends EventEmitter {
     const currentPrice = marketData.price;
     const entryPrice = position.entryPrice;
     const pnlPercentage = ((currentPrice - entryPrice) / entryPrice) * 100;
+    const rules = this.aiRules.get(position.symbol);
 
     // Check stop-loss
-    if (this.riskService.checkStopLoss(position)) {
+    if (this.riskService.checkStopLoss(position) || (rules && pnlPercentage <= -Math.abs(rules.stopLossPct))) {
       return {
         action: 'sell',
         symbol: position.symbol,
@@ -465,13 +468,14 @@ export class AutomatedTradingLogic extends EventEmitter {
     }
 
     // Check take-profit (if position is profitable by more than 10%)
-    if (pnlPercentage > 10) {
+    const tpThreshold = rules ? Math.abs(rules.takeProfitPct) : 10;
+    if (pnlPercentage > tpThreshold) {
       return {
         action: 'sell',
         symbol: position.symbol,
-        amount: position.amount * 0.5, // Sell half position to lock in profits
+        amount: position.amount * 0.7,
         price: currentPrice,
-        reasoning: `Take profit at ${pnlPercentage.toFixed(2)}% gain`,
+        reasoning: `Take profit (dynamic) at ${pnlPercentage.toFixed(2)}% gain`,
         confidence: 0.8,
         timestamp: new Date()
       };
@@ -609,12 +613,40 @@ export class AutomatedTradingLogic extends EventEmitter {
     }
 
     // Full position for high confidence signals
-    if (signal.confidence > 0.9) {
+    if (signal.confidence > 0.85) {
       return position.amount;
     }
 
     // Default to half position
-    return position.amount * 0.5;
+    return position.amount * 0.6;
+  }
+
+  private updateRulesFromSignal(signal: TradingSignal, marketPrice: number): void {
+    if (!signal || !marketPrice || marketPrice <= 0) return;
+    let takeProfitPct = 0;
+    let stopLossPct = 0;
+    if (signal.action === 'buy') {
+      if (signal.targetPrice && signal.targetPrice > 0) {
+        takeProfitPct = ((signal.targetPrice - marketPrice) / marketPrice) * 100;
+      }
+      if (signal.stopLoss && signal.stopLoss > 0) {
+        stopLossPct = ((marketPrice - signal.stopLoss) / marketPrice) * 100;
+      }
+    } else if (signal.action === 'sell') {
+      if (signal.targetPrice && signal.targetPrice > 0) {
+        takeProfitPct = ((marketPrice - signal.targetPrice) / marketPrice) * 100;
+      }
+      if (signal.stopLoss && signal.stopLoss > 0) {
+        stopLossPct = ((signal.stopLoss - marketPrice) / marketPrice) * 100;
+      }
+    }
+    const current = this.aiRules.get(signal.symbol) || { takeProfitPct: 10, stopLossPct: 5 };
+    const updated = {
+      takeProfitPct: takeProfitPct !== 0 ? Math.abs(takeProfitPct) : current.takeProfitPct,
+      stopLossPct: stopLossPct !== 0 ? Math.abs(stopLossPct) : current.stopLossPct,
+      leverage: current.leverage
+    };
+    this.aiRules.set(signal.symbol, updated);
   }
 
   /**

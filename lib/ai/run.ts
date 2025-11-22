@@ -39,15 +39,45 @@ export async function runAIAnalysis() {
         if (isNebiusConnected) {
           try {
             const aiResponse = await nebiusAI.analyzeWithPrompt(whalePrompt);
-            whaleAnalysis = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
+            const rawAnalysis = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
+            
+            // Transform whale detection response to standard format
+            if (rawAnalysis.tradingDecision) {
+              // This is a whale detection response, transform it
+              whaleAnalysis = {
+                timestamp: rawAnalysis.timestamp || new Date().toISOString(),
+                symbol: rawAnalysis.symbol || symbol,
+                action: rawAnalysis.tradingDecision.action || 'HOLD',
+                confidence: rawAnalysis.tradingDecision.confidence || 0.5,
+                reasoning: rawAnalysis.tradingDecision.reasoning || 'Whale detection analysis',
+                technicalIndicators: rawAnalysis.technicalIndicators || {
+                  rsi: 50,
+                  trend: 'NEUTRAL',
+                  support: 0,
+                  resistance: 0,
+                  sentiment: 'NEUTRAL'
+                },
+                riskAssessment: rawAnalysis.riskAssessment || {
+                  volatility: 'MEDIUM',
+                  marketSentiment: 'NEUTRAL',
+                  recommendedLeverage: 5,
+                  stopLoss: 3,
+                  takeProfit: 10
+                },
+                modelUsed: rawAnalysis.modelUsed || 'Nebius-WhaleDetection'
+              };
+            } else {
+              // Already in standard format
+              whaleAnalysis = rawAnalysis;
+            }
           } catch (aiError) {
             console.warn(`⚠️ Whale AI analysis failed for ${symbol}, using fallback:`, aiError);
             // Fallback to regular analysis
-            whaleAnalysis = await marketAnalyzer.analyzeSingleSymbol(symbol);
+            whaleAnalysis = await marketAnalyzer.analyzeMarket(symbol);
           }
         } else {
           // Fallback to regular analysis
-          whaleAnalysis = await marketAnalyzer.analyzeSingleSymbol(symbol);
+          whaleAnalysis = await marketAnalyzer.analyzeMarket(symbol);
         }
         
         analyses.push(whaleAnalysis);
@@ -56,7 +86,7 @@ export async function runAIAnalysis() {
         console.error(`❌ Error in enhanced analysis for ${symbol}:`, error);
         // Fallback to regular analysis
         try {
-          const fallbackAnalysis = await marketAnalyzer.analyzeSingleSymbol(symbol);
+          const fallbackAnalysis = await marketAnalyzer.analyzeMarket(symbol);
           analyses.push(fallbackAnalysis);
         } catch (fallbackError) {
           console.error(`❌ Fallback analysis also failed for ${symbol}:`, fallbackError);
@@ -72,6 +102,17 @@ export async function runAIAnalysis() {
     
     for (const analysis of analyses) {
       try {
+        // Validate required fields
+        if (!analysis.action || !analysis.confidence || !analysis.reasoning) {
+          console.warn(`⚠️ Skipping incomplete analysis for ${analysis.symbol}:`, {
+            action: analysis.action,
+            confidence: analysis.confidence,
+            reasoning: analysis.reasoning
+          });
+          storedAnalyses.push(analysis);
+          continue;
+        }
+        
         // Store in database
         const stored = await prisma.aIAnalysis.create({
           data: {
