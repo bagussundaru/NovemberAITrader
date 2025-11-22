@@ -1,0 +1,20 @@
+[Unit]
+Description=Trading Bot Metrics Collection
+Documentation=https://github.com/bagussundaru/NovemberAITrader
+After=trading-bot.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/NovemberAITrader
+
+# Collect and store metrics
+ExecStart=/bin/bash /root/NovemberAITrader/deployment/scripts/collect-metrics.sh
+
+# Logging
+StandardOutput=append:/var/log/trading-bot/metrics.log
+StandardError=append:/var/log/trading-bot/metrics-error.log
+SyslogIdentifier=trading-bot-metrics
+
+[Install]
+WantedBy=multi-user.target
