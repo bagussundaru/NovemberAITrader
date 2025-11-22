@@ -38,14 +38,14 @@ import { getProxyDispatcher } from '@/lib/utils/proxy-dispatcher'
 
 export class NebiusAIService {
   private apiKey: string;
-  private baseUrl: string = 'https://api.deepseek.com';
-  private model: string = 'deepseek-chat';
-  private fastModel: string = 'deepseek-chat';
+  private baseUrl: string = 'https://api.studio.nebius.ai/v1';
+  private model: string = 'deepseek-ai/DeepSeek-V3';
+  private fastModel: string = 'deepseek-ai/DeepSeek-V3';
 
   constructor() {
-    this.apiKey = process.env.DEEPSEEK_API_KEY || '';
+    this.apiKey = process.env.NEBIUS_API_KEY || process.env.NEBIUS_JWT_TOKEN || '';
     if (!this.apiKey) {
-      throw new Error('Missing DeepSeek AI credentials: set DEEPSEEK_API_KEY in .env file');
+      throw new Error('Missing Nebius AI credentials: set NEBIUS_API_KEY or NEBIUS_JWT_TOKEN in .env file');
     }
   }
 
@@ -124,7 +124,7 @@ export class NebiusAIService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`DeepSeek AI API Error: ${response.status} - ${errorText}`);
+      throw new Error(`AI Engine API Error: ${response.status} - ${errorText}`);
     }
 
     return response.json();
@@ -142,7 +142,7 @@ export class NebiusAIService {
     }
   ): Promise<TradingAnalysisResult> {
     try {
-      console.log(`🤖 AI Engine (DeepSeek) analyzing ${symbol}...`);
+      console.log(`🤖 AI Engine (DeepSeek-V3 via Nebius) analyzing ${symbol}...`);
 
       // Calculate technical indicators
       const rsi = marketData.rsi || this.calculateRSI(marketData.price, marketData.change24h);
@@ -373,7 +373,7 @@ Respond with only: BULLISH/BEARISH/NEUTRAL + confidence percentage + one sentenc
       const response = await this.makeRequest(testPrompt, this.fastModel, 50);
       return response.choices && response.choices.length > 0;
     } catch (error) {
-      console.error('DeepSeek AI connection test failed:', error);
+      console.error('AI Engine connection test failed:', error);
       return false;
     }
   }

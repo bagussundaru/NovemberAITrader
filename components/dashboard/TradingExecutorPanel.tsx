@@ -17,10 +17,11 @@ export default function TradingExecutorPanel({ balance }: TradingExecutorPanelPr
     takeProfit: 10.0
   });
   const [aiConfig, setAiConfig] = useState({
-    model: 'deepseek-chat',
+    model: 'deepseek-ai/DeepSeek-V3',
     confidenceThreshold: 0.7,
     signalProcessingInterval: 60,
-    exchange: 'Binance Futures'
+    exchange: 'Bybit',
+    tradingPair: 'ETHUSDT'
   });
 
   const activePositions = balance?.data?.positions?.length || 0;
@@ -227,7 +228,7 @@ export default function TradingExecutorPanel({ balance }: TradingExecutorPanelPr
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-success)'
         }}>
-          ✅ <strong>Binance Futures Live Trading</strong> - Powered by AI Engine (DeepSeek)
+          ✅ <strong>Bybit ETH/USDT Perpetual Trading</strong> - Powered by AI Engine (DeepSeek-V3 via Nebius)
         </div>
       )}
     </div>

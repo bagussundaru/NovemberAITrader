@@ -3,23 +3,25 @@
 ## Overview
 
 Trading bot ini telah diupgrade dengan:
-1. **DeepSeek AI** menggantikan Meta Llama untuk analisis market yang lebih baik
+1. **DeepSeek-V3 AI** via Nebius Platform untuk analisis market yang lebih baik
 2. **Advanced Market Analytics** dengan CVD, Volume, Chart Pattern, dan VRVP
-3. **Fokus ke Binance Futures** untuk pair ETH/USDT
+3. **Fokus ke Bybit Perpetual** untuk pair ETH/USDT
 
 ## ✨ Fitur Baru
 
-### 1. DeepSeek AI Integration
+### 1. DeepSeek-V3 AI Integration (via Nebius)
 
-**Model:** `deepseek-chat`
+**Model:** `deepseek-ai/DeepSeek-V3`
 - Model AI terbaru dari DeepSeek untuk analisis cryptocurrency
+- Diakses melalui Nebius Platform untuk performa optimal
 - Lebih akurat dalam deteksi trend dan sentiment analysis
 - Response time lebih cepat dibanding model sebelumnya
 
 **Konfigurasi:**
 ```env
-DEEPSEEK_API_KEY=your-api-key-here
-DEEPSEEK_MODEL=deepseek-chat
+NEBIUS_API_URL="https://api.studio.nebius.ai"
+NEBIUS_JWT_TOKEN=your-nebius-jwt-token
+NEBIUS_MODEL="deepseek-ai/DeepSeek-V3"
 ```
 
 ### 2. Advanced Market Analytics
@@ -72,12 +74,15 @@ cp .env.example .env
 
 2. Tambahkan API keys:
 ```env
-# DeepSeek AI
-DEEPSEEK_API_KEY=sk-your-api-key-here
+# Nebius AI (DeepSeek Model)
+NEBIUS_API_URL="https://api.studio.nebius.ai"
+NEBIUS_JWT_TOKEN=your-nebius-jwt-token-here
+NEBIUS_MODEL="deepseek-ai/DeepSeek-V3"
 
-# Binance Futures
-BINANCE_API_KEY=your-binance-key
-BINANCE_API_SECRET=your-binance-secret
+# Bybit Perpetual
+BYBIT_API_KEY=your-bybit-key
+BYBIT_API_SECRET=your-bybit-secret
+BYBIT_TESTNET=false
 ```
 
 ### Running the Bot
@@ -88,13 +93,14 @@ npm run dev
 ```
 
 Bot akan otomatis:
-- Connect ke Binance Futures
+- Connect ke Bybit Perpetual
 - Analisis ETH/USDT setiap 1 jam
 - Execute trades berdasarkan signals
 
 ## 📊 Trading Pair Configuration
 
-**Primary Pair:** ETH/USDT (Binance Futures)
+**Exchange:** Bybit Perpetual
+**Primary Pair:** ETH/USDT
 **Timeframe:** 1 hour
 **Min Confidence:** 70%
 **Update Interval:** 60 seconds
@@ -117,15 +123,17 @@ Bot akan otomatis:
 
 ### Yang Berubah:
 - ❌ Multi-exchange support (dihapus)
-- ❌ Meta Llama / Nebius AI (diganti DeepSeek)
-- ✅ Fokus ke Binance Futures
+- ❌ Meta Llama model (diganti DeepSeek-V3)
+- ✅ Fokus ke Bybit ETH/USDT Perpetual
 - ✅ Advanced analytics (CVD, VRVP, Pattern)
 - ✅ Automated trading dengan rules yang lebih ketat
+- ✅ DeepSeek-V3 via Nebius Platform
 
 ### Dashboard Changes:
 - "Nebius AI" → "AI Engine"
-- "Bybit" → "Binance Futures"
-- Model display: "DeepSeek" instead of "Meta Llama"
+- Model display: "DeepSeek-V3" (via Nebius)
+- Exchange: "Bybit ETH/USDT Perpetual"
+- Trading pair: ETH/USDT focus
 
 ## 📈 Expected Performance
 
@@ -137,11 +145,12 @@ Dengan analytics yang lebih advanced:
 
 ## ⚠️ Important Notes
 
-1. **API Keys**: Pastikan DEEPSEEK_API_KEY valid
-2. **Binance Account**: Gunakan Futures account, bukan Spot
-3. **Risk Management**: Bot akan otomatis manage risk, tapi tetap monitor
-4. **Volume Check**: Bot tidak akan trade di market sepi
-5. **Hunter Zones**: Bot akan skip entry jika detect large liquidity trap
+1. **API Keys**: Pastikan NEBIUS_JWT_TOKEN atau NEBIUS_API_KEY valid
+2. **Bybit Account**: Gunakan Perpetual/Derivatives account
+3. **Trading Pair**: Focus 100% di ETH/USDT Perpetual
+4. **Risk Management**: Bot akan otomatis manage risk, tapi tetap monitor
+5. **Volume Check**: Bot tidak akan trade di market sepi
+6. **Hunter Zones**: Bot akan skip entry jika detect large liquidity trap
 
 ## 🛠️ File Structure
 
@@ -171,25 +180,27 @@ File utama yang diubah:
 - Check confidence level - mungkin < 70%
 - Check hunter zones - mungkin terlalu dekat
 
-### DeepSeek API Error:
-- Verify API key di `.env`
-- Check API quota/balance
+### Nebius AI API Error:
+- Verify NEBIUS_JWT_TOKEN atau NEBIUS_API_KEY di `.env`
+- Check API quota/balance di Nebius dashboard
 - Ensure network connectivity
 
 ### Analytics tidak update:
-- Check Binance API connection
-- Verify timeframe settings
+- Check Bybit API connection
+- Verify timeframe settings (1h)
 - Ensure sufficient candle data
+- Check ETH/USDT perpetual market availability
 
 ## 📞 Support
 
 For issues or questions, check:
-- DeepSeek API docs: https://platform.deepseek.com/api-docs
-- Binance Futures API: https://binance-docs.github.io/apidocs/futures/en/
+- Nebius AI Platform: https://studio.nebius.ai
+- DeepSeek Model docs: https://www.deepseek.com
+- Bybit API: https://bybit-exchange.github.io/docs/
 
 ---
 
 **Version:** 2.0.0
 **Last Updated:** 2025-11-22
-**AI Engine:** DeepSeek Chat
-**Target Exchange:** Binance Futures
+**AI Engine:** DeepSeek-V3 (via Nebius Platform)
+**Target Exchange:** Bybit Perpetual (ETH/USDT)

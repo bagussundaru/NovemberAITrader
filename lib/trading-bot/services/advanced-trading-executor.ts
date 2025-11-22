@@ -2,7 +2,8 @@
  * Advanced Trading Executor
  * Menggunakan analitik CVD, Volume, Chart Pattern, dan VRVP untuk automated trading
  *
- * Focus: ETH/USDT pada Binance Futures
+ * Focus: ETH/USDT pada Bybit Perpetual
+ * AI Engine: DeepSeek-V3 via Nebius Platform
  */
 
 import {
@@ -13,7 +14,7 @@ import {
   TradingSignal
 } from '../analytics/advanced-market-analytics';
 
-export interface BinanceFuturesClient {
+export interface BybitPerpetualClient {
   getKlines(symbol: string, interval: string, limit: number): Promise<any[]>;
   getOrderBook(symbol: string, limit: number): Promise<any>;
   createOrder(params: {
@@ -59,13 +60,13 @@ export interface BotStatus {
 }
 
 export class AdvancedTradingExecutor {
-  private client: BinanceFuturesClient;
+  private client: BybitPerpetualClient;
   private config: TradingBotConfig;
   private status: BotStatus;
   private updateTimer: NodeJS.Timeout | null = null;
   private historicalVolume: Array<{ price: number; volume: number }> = [];
 
-  constructor(client: BinanceFuturesClient, config: TradingBotConfig) {
+  constructor(client: BybitPerpetualClient, config: TradingBotConfig) {
     this.client = client;
     this.config = config;
     this.status = {
@@ -504,10 +505,10 @@ export class AdvancedTradingExecutor {
 }
 
 /**
- * Factory function to create and start a trading bot
+ * Factory function to create and start a trading bot for Bybit Perpetual
  */
 export async function createAdvancedTradingBot(
-  client: BinanceFuturesClient,
+  client: BybitPerpetualClient,
   config: Partial<TradingBotConfig> = {}
 ): Promise<AdvancedTradingExecutor> {
   const defaultConfig: TradingBotConfig = {
